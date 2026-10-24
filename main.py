@@ -96,5 +96,5 @@ def run_pipeline_optimized_test():
     except Exception as e:
         write_json_log("CRITICAL", pipeline_session_id, "PIPELINE", "FAILED", error=str(e), message="Пайплайн упал")
 
-if __name__ == "__main__":
-    run_pipeline()
+# Запуск
+run_pipeline_test = run_pipeline_optimized_test()
