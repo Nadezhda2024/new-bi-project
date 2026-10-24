@@ -1,74 +1,100 @@
-import logging
 import time
+import sys
+import os
+from datetime import date, timedelta
+
+# Имитируем заглушки функций базы данных для Этапа 1
+def insert_products_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.products: {len(data)} строк")
+def insert_orders_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.orders: {len(data)} строк")
+def insert_sales_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.sales: {len(data)} строк")
+def insert_stocks_to_staging_mock(data, mode): print(f"[DB MOCK] Отправлено в staging.stocks ({mode}): {len(data)} строк")
+def insert_stock_analytics_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.stock_analytics: {len(data)} строк")
+
+# Подключаем наш wb_client из папки scripts
+ROOT_DIR = r"D:\Documents\Dev\projects\new-bi-project"
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
 from scripts.wb_client import (
+    write_json_log,
     fetch_content_products_raw,
-    fetch_marketplace_orders_raw,
-    fetch_marketplace_sales_raw,
     fetch_analytics_wb_stocks_raw,
     fetch_analytics_seller_stocks_raw,
-    fetch_analytics_products_business_raw
-)
-from scripts.db_loader import (
-    insert_products_to_staging,
-    insert_orders_to_staging,
-    insert_sales_to_staging,
-    insert_stocks_to_staging,
-    insert_stock_analytics_to_staging,
-    get_catalog_ids_for_stocks
+    fetch_analytics_products_business_raw,
+    safe_request,
+    WB_TOKEN_STAT
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-log = logging.getLogger(__name__)
-
-def run_pipeline():
-    log.info("🚀 Запуск комплексного ETL-пайплайна WB (Раздельное хранение остатков и аналитики)")
+def run_pipeline_optimized_test():
+    pipeline_session_id = "pipeline-session-test"
+    write_json_log("INFO", pipeline_session_id, "PIPELINE", "START", message="Запуск оптимизированного пайплайна")
     start_time = time.time()
     
     try:
-        log.info("--- [1/4] Выгрузка карточек товаров ---")
+        # 1. Выгрузка каталога товаров (1 запрос)
+        write_json_log("INFO", pipeline_session_id, "PIPELINE", "CATALOG_START", message="Выгрузка карточек товаров")
         raw_cards = fetch_content_products_raw()
-        insert_products_to_staging(raw_cards)
-        time.sleep(2)
+        insert_products_to_staging_mock(raw_cards)
         
-        log.info("--- [2/4] Выгрузка заказов ---")
-        raw_orders = fetch_marketplace_orders_raw()
-        insert_orders_to_staging(raw_orders)
-        time.sleep(2)
+        # Пересчитываем дату для Статистики (один запрос на 5 дней назад)
+        start_date_str = f"{(date.today() - timedelta(days=5)).isoformat()}T00:00:00"
+        headers_stat = {"Authorization": WB_TOKEN_STAT}
         
-        log.info("--- [3/4] Выгрузка продаж ---")
-        raw_sales = fetch_marketplace_sales_raw()
-        insert_sales_to_staging(raw_sales)
-        time.sleep(2)
+        # 2. Выгрузка ЗАКАЗОВ пакетом (1 запрос вместо 6)
+        write_json_log("INFO", pipeline_session_id, "PIPELINE", "ORDERS_START", message="Выгрузка заказов единым пакетом")
+        url_orders = "https://statistics-api.wildberries.ru/api/v1/supplier/orders"
+        resp_orders = safe_request("GET", url_orders, headers=headers_stat, params={"dateFrom": start_date_str, "flag": 1}, timeout=120)
+        raw_orders = resp_orders.json() if isinstance(resp_orders.json(), list) else []
+        insert_orders_to_staging_mock(raw_orders)
         
-        # --- [4/4] Сбор данных остатков (FBO + FBS + Тренды v2) ---
-        nm_ids, chrt_ids = get_catalog_ids_for_stocks()
+        # Ждем 60 секунд ОДИН раз, чтобы гарантированно очистить окно лимита для следующего метода статистики
+        write_json_log("INFO", pipeline_session_id, "PIPELINE", "WAIT_LIMIT", message="Пауза 60 сек для очистки лимита статистики перед продажами")
+        time.sleep(60.0)
+        
+        # 3. Выгрузка ПРОДАЖ пакетом (1 запрос вместо 6)
+        write_json_log("INFO", pipeline_session_id, "PIPELINE", "SALES_START", message="Выгрузка продаж единым пакетом")
+        url_sales = "https://statistics-api.wildberries.ru/api/v1/supplier/sales"
+        resp_sales = safe_request("GET", url_sales, headers=headers_stat, params={"dateFrom": start_date_str, "flag": 1}, timeout=120)
+        raw_sales = resp_sales.json() if isinstance(resp_sales.json(), list) else []
+        insert_sales_to_staging_mock(raw_sales)
+        
+        # 4. Выгрузка остатков и аналитики (FBO + FBS + Тренды v2)
+        nm_ids = list(set([card.get("nmID") for card in raw_cards if card.get("nmID")]))
+        chrt_ids = []
+        for card in raw_cards:
+            for size in card.get("sizes", []):
+                c_id = size.get("chrtID")
+                if c_id:
+                    chrt_ids.append(c_id)
+        chrt_ids = list(set(chrt_ids))
         
         if not nm_ids:
-            log.warning("⚠️ Каталог пуст. Невозможно запросить остатки.")
+            write_json_log("WARNING", pipeline_session_id, "PIPELINE", "CATALOG_EMPTY", message="Каталог пуст")
         else:
-            # 1. Запрос физических остатков WB (FBO) -> едет в staging.stocks
+            # Выгрузка FBO (Склады WB)
+            write_json_log("INFO", pipeline_session_id, "PIPELINE", "STOCKS_FBO_START", message="Выгрузка остатков FBO")
             raw_wb = fetch_analytics_wb_stocks_raw(nm_ids, chrt_ids)
-            insert_stocks_to_staging(raw_wb, "wb")
+            insert_stocks_to_staging_mock(raw_wb, "wb")
             
-            # Спим 25 секунд, чтобы очистить окно лимитов API WB (Burst Rate)
-            log.info("⏳ Пауза 25 секунд для соблюдения лимитов API Аналитики...")
-            time.sleep(25)
+            time.sleep(1.0)
             
-            # 2. Запрос физических остатков продавца (FBS) -> едет в staging.stocks
+            # Выгрузка FBS (Склады продавца)
+            write_json_log("INFO", pipeline_session_id, "PIPELINE", "STOCKS_FBS_START", message="Выгрузка остатков FBS")
             raw_seller = fetch_analytics_seller_stocks_raw(nm_ids, chrt_ids)
-            insert_stocks_to_staging(raw_seller, "seller")
+            insert_stocks_to_staging_mock(raw_seller, "seller")
             
-            # Спим еще 25 секунд перед вызовом финального метода
-            log.info("⏳ Пауза 25 секунд для соблюдения лимитов API Аналитики...")
-            time.sleep(25)
+            time.sleep(1.0)
             
-            # 3. Запрос глубокой аналитики WB -> едет в staging.stock_analytics
+            # Выгрузка глубокой бизнес-аналитики
+            write_json_log("INFO", pipeline_session_id, "PIPELINE", "BUSINESS_ANALYTICS_START", message="Выгрузка бизнес-аналитики остатков")
             raw_business = fetch_analytics_products_business_raw(nm_ids)
-            insert_stock_analytics_to_staging(raw_business)
+            insert_stock_analytics_to_staging_mock(raw_business)
         
-        log.info(f"🎉 Профессиональный пайплайн успешно выполнен за {time.time() - start_time:.2f} сек!")
+        duration = time.time() - start_time
+        write_json_log("INFO", pipeline_session_id, "PIPELINE", "SUCCESS", message=f"Оптимизированный пайплайн выполнен за {duration:.2f} сек")
+        
     except Exception as e:
-        log.error(f"🚨 Работа пайплайна аварийно прервана: {e}")
+        write_json_log("CRITICAL", pipeline_session_id, "PIPELINE", "FAILED", error=str(e), message="Пайплайн упал")
 
 if __name__ == "__main__":
     run_pipeline()
