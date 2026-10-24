@@ -1,0 +1,5 @@
+Заказы https://statistics-api.wildberries.ru/api/v1/supplier/orders
+Продажи https://statistics-api.wildberries.ru/api/v1/supplier/sales
+Товары https://content-api.wildberries.ru/content/v2/get/cards/list
+глубокая аналития остатков https://seller-analytics-api.wildberries.ru/api/analytics/v1/stocks-report/wb-warehouses
+Остатки https://seller-analytics-api.wildberries.ru/api/analytics/v1/stocks-report/seller-warehouses
