@@ -289,32 +289,3 @@ def fetch_analytics_seller_stocks_raw(all_nm_ids: list, all_chrt_ids: list) -> l
     except Exception as e:
         write_json_log("ERROR", "pipeline_stocks", "POST", url, error=str(e), message="Ошибка декодирования JSON FBS-остатков")
         return []
-
-def fetch_analytics_products_business_raw(all_nm_ids: list) -> list:
-    """6. Выгружает глубокую бизнес-аналитику (оборачиваемость, дефициты) из API Аналитики v2."""
-    if not inspect_wb_token(WB_TOKEN_ANALYTICS, "WB_TOKEN_ANALYTICS"):
-        raise ValueError("Префлай-валидация токена аналитики провалена.")
-        
-    headers = {"Authorization": WB_TOKEN_ANALYTICS, "Content-Type": "application/json"}
-    url = "https://seller-analytics-api.wildberries.ru/api/v2/stocks-report/products/groups"
-    
-    start_str = (date.today() - timedelta(days=7)).strftime("%Y-%m-%d")
-    end_str = date.today().strftime("%Y-%m-%d")
-    
-    payload = {
-        "nmIDs": all_nm_ids[:1000],
-        "currentPeriod": {"start": start_str, "end": end_str},
-        "stockType": "",  
-        "skipDeletedNm": True,
-        "availabilityFilters": ["deficient", "actual", "balanced", "nonActual", "nonLiquid", "invalidData"],
-        "orderBy": {"field": "avgOrders", "mode": "asc"},
-        "limit": 1000,
-        "offset": 0
-    }
-    
-    resp = safe_request("POST", url, headers=headers, json_data=payload, timeout=60)
-    try:
-        return resp.json().get("data", {}).get("items", [])
-    except Exception as e:
-        write_json_log("ERROR", "pipeline_business", "POST", url, error=str(e), message="Ошибка декодирования JSON бизнес-аналитики")
-        return []
