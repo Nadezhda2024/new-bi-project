@@ -1,0 +1,23 @@
+FullName                                            
+--------                                            
+D:\Documents\Dev\projects\new-bi-project\data\IMG_20260707_145640.jpg
+IMG_20260707_145643.jpg
+IMG_20260707_145646.jpg
+промпт для нейронки.txt       
+D:\Documents\Dev\projects\new-bi-project\docs\эндопоинты.txt.       
+D:\Documents\Dev\projects\new-bi-project\notebooks\research.ipynb
+research_wb_api.ipynb
+test_db_connection.ipynb
+wb_data_exploration.ipynb  
+D:\Documents\Dev\projects\new-bi-project\reports    
+D:\Documents\Dev\projects\new-bi-project\scripts\Подпапка: __pycache__
+Файлы: .env, .env.example, db_init.py, db_loader.py, wb_client.py    
+D:\Documents\Dev\projects\new-bi-project\sql        
+D:\Documents\Dev\projects\new-bi-project\sql\staging\01_create_schemas.sql
+02_create_raw_orders.sql
+03_create_staging_sales.sql
+04_create_staging_products.sql
+05_create_staging_stocks.sql
+05_create_staging_stock_analytics.sql
+06_create_staging_raw_financial_reports.sql
+D:\Documents\Dev\projects\new-bi-project\ файлы: .gitignore, main.py, README.md, structure.txt.
