@@ -8,7 +8,6 @@ def insert_products_to_staging_mock(data): print(f"[DB MOCK] Отправлен�
 def insert_orders_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.orders: {len(data)} строк")
 def insert_sales_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.sales: {len(data)} строк")
 def insert_stocks_to_staging_mock(data, mode): print(f"[DB MOCK] Отправлено в staging.stocks ({mode}): {len(data)} строк")
-def insert_stock_analytics_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.stock_analytics: {len(data)} строк")
 
 # Подключаем наш wb_client из папки scripts
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -20,7 +19,6 @@ from scripts.wb_client import (
     fetch_content_products_raw,
     fetch_analytics_wb_stocks_raw,
     fetch_analytics_seller_stocks_raw,
-    fetch_analytics_products_business_raw,
     safe_request,
     WB_TOKEN_STAT
 )
@@ -85,11 +83,6 @@ def run_pipeline_optimized_test():
             
             time.sleep(1.0)
             
-            # Выгрузка глубокой бизнес-аналитики
-            write_json_log("INFO", pipeline_session_id, "PIPELINE", "BUSINESS_ANALYTICS_START", message="Выгрузка бизнес-аналитики остатков")
-            raw_business = fetch_analytics_products_business_raw(nm_ids)
-            insert_stock_analytics_to_staging_mock(raw_business)
-        
         duration = time.time() - start_time
         write_json_log("INFO", pipeline_session_id, "PIPELINE", "SUCCESS", message=f"Оптимизированный пайплайн выполнен за {duration:.2f} сек")
         
