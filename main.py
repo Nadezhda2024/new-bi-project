@@ -11,7 +11,7 @@ def insert_stocks_to_staging_mock(data, mode): print(f"[DB MOCK] Отправл�
 def insert_stock_analytics_to_staging_mock(data): print(f"[DB MOCK] Отправлено в staging.stock_analytics: {len(data)} строк")
 
 # Подключаем наш wb_client из папки scripts
-ROOT_DIR = r"D:\Documents\Dev\projects\new-bi-project"
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 

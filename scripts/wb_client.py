@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 log = logging.getLogger(__name__)
 
 # Инициализация путей окружения
-ROOT_DIR = r"D:\Documents\Dev\projects\new-bi-project"
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 dotenv_path = os.path.join(ROOT_DIR, "scripts", ".env")
 load_dotenv(dotenv_path=dotenv_path)
 
@@ -288,4 +288,30 @@ def fetch_analytics_seller_stocks_raw(all_nm_ids: list, all_chrt_ids: list) -> l
         return resp.json().get("data", {}).get("items", [])
     except Exception as e:
         write_json_log("ERROR", "pipeline_stocks", "POST", url, error=str(e), message="Ошибка декодирования JSON FBS-остатков")
+        return []
+
+
+def fetch_analytics_products_business_raw(all_nm_ids: list) -> list:
+    """6. Выгружает бизнес-аналитику по номенклатуре (детализацию товаров) из API Аналитики."""
+    if not inspect_wb_token(WB_TOKEN_ANALYTICS, "WB_TOKEN_ANALYTICS"):
+        raise ValueError("Префлай-валидация токена аналитики провалена.")
+        
+    headers = {"Authorization": WB_TOKEN_ANALYTICS, "Content-Type": "application/json"}
+    url = "https://seller-analytics-api.wildberries.ru/api/analytics/v1/nm-report/detail"
+    
+    payload = {
+        "nmIds": all_nm_ids[:1000],
+        "limit": 1000,
+        "offset": 0
+    }
+    
+    resp = safe_request("POST", url, headers=headers, json_data=payload, timeout=60)
+    if resp.status_code == 204 or not resp.text.strip():
+        write_json_log("WARNING", "pipeline_business", "POST", url, status_code=resp.status_code, message="По номенклатуре нет доступных данных бизнес-аналитики. Возвращаем пустой список.")
+        return []
+        
+    try:
+        return resp.json().get("data", {}).get("items", [])
+    except Exception as e:
+        write_json_log("ERROR", "pipeline_business", "POST", url, error=str(e), message="Ошибка декодирования JSON бизнес-аналитики")
         return []
